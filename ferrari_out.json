@@ -1,0 +1,11 @@
+{
+    "make": "Ferrari",
+    "model": "458 Italia",
+    "price": 300000,
+    "features": [
+        "V8",
+        "rear-wheel drive",
+        "carbon ceramic brakes"
+    ],
+    "available": true
+}
