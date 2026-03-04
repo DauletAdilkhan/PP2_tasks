@@ -6,10 +6,8 @@ for _ in range(q):
     module_path, attr = input().strip().split()
     
     try:
-        # Пробуем импортировать модуль
         module = importlib.import_module(module_path)
         
-        # Проверяем наличие атрибута
         if hasattr(module, attr):
             attr_value = getattr(module, attr)
             if callable(attr_value):
