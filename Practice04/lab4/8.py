@@ -17,7 +17,7 @@ def prime(n):
 
 
 
-a = list(prime(int(input())))
+a = prime(int(input()))
 print(*a)
 
 
