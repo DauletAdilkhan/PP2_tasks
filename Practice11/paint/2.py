@@ -51,13 +51,13 @@ while not done:
             print("LMB released!")
             LMBpressed = False
         
-        if event.type == pygame.KEYDOWN: 
+        """if event.type == pygame.KEYDOWN: 
             if event.key == pygame.K_EQUALS or event.key == pygame.K_PLUS:
                 print("increased thickness")
                 THICKNESS += 1
             if event.key == pygame.K_MINUS:
                 print("reduced thickness")
-                THICKNESS = max(1, THICKNESS - 1)  # Не даем толщине стать меньше 1
+                THICKNESS = max(1, THICKNESS - 1)  # Не даем толщине стать меньше 1"""
 
     pygame.display.flip()
     clock.tick(60)
