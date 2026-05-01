@@ -1,187 +1,219 @@
-#Imports
-import pygame, sys
-from pygame.locals import *
-import random, time
+# Импортируем Pygame и файлы проекта.
+import pygame
+from racer import WIDTH, HEIGHT, FPS, RacerGame
+from ui import Button, draw_text, username_screen, WHITE, DARK, YELLOW, GREEN, RED
+from persistence import load_settings, save_settings, load_leaderboard, save_score
 
-#Initialzing 
+# Запускаем Pygame.
 pygame.init()
 
-#Setting up FPS 
-FPS = 60
-FramePerSec = pygame.time.Clock()
+# Создаем окно игры.
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("TSIS3 Racer")
+clock = pygame.time.Clock()
+font = pygame.font.SysFont("Verdana", 20)
+small_font = pygame.font.SysFont("Verdana", 16)
 
-#Creating colors
-BLUE  = (0, 0, 255)
-RED   = (255, 0, 0)
-GREEN = (0, 255, 0)
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-
-#Other Variables for use in the program
-SCREEN_WIDTH = 400
-SCREEN_HEIGHT = 600
-SPEED = 5
-SCORE_E = 0
-SCORE_C = 0 #Variable for coin
-
-#Setting up Fonts
-font = pygame.font.SysFont("Verdana", 60)
-font_small = pygame.font.SysFont("Verdana", 20)
-game_over = font.render("Game Over", True, BLACK)
-font_coin= pygame.font.SysFont("Verdana", 20) #Font for coin
-background = pygame.image.load("AnimatedStreet.png")
-
-#BG sound
-pygame.mixer.music.load('BTS - Swim.mp3')
-pygame.mixer.music.play(-1)
-
-#Create a white screen 
-DISPLAYSURF = pygame.display.set_mode((400,600))
-DISPLAYSURF.fill(WHITE)
-pygame.display.set_caption("Game")
-
-class Enemy(pygame.sprite.Sprite):
-      def __init__(self):
-        super().__init__() 
-        self.image = pygame.image.load("Enemy.png")
-        self.rect = self.image.get_rect()
-        self.rect.center = (random.randint(40,SCREEN_WIDTH-40), 0)
-      def move(self):
-        global SCORE_E
-        self.rect.move_ip(0,SPEED)
-        if (self.rect.bottom > 600):
-            SCORE_E += 1
-            self.rect.top = 0
-            self.rect.center = (random.randint(40, SCREEN_WIDTH - 40), 0)
-#New class for coins
-class Coin(pygame.sprite.Sprite):
-      def __init__(self):
-        super().__init__() 
-        self.image = pygame.image.load("coin.png")
-        self.image = pygame.transform.scale(self.image, (30, 30))
-        self.rect = self.image.get_rect()
-        self.rect.center = (random.randint(40,SCREEN_WIDTH-40), 0)
-
-      def move(self):
-        global SCORE_C
-        self.rect.move_ip(0,SPEED)
-        #если монетка ушла за экран удаляям ее
-        if (self.rect.bottom > 600):
-            self.kill()#удаляем монетку
-      def reset(self):
-        self.rect.top = 0
-        self.rect.center = (random.randint(40, SCREEN_WIDTH - 40), 0)
+# Загружаем настройки из JSON-файла.
+settings = load_settings()
+username = "Player"
+last_result = None
 
 
-class Player(pygame.sprite.Sprite):
-    def __init__(self):
-        super().__init__() 
-        self.image = pygame.image.load("Player.png")
-        self.rect = self.image.get_rect()
-        self.rect.center = (160, 520)
-       
-    def move(self):
-        pressed_keys = pygame.key.get_pressed()
-        
-        if self.rect.left > 0:
-              if pressed_keys[K_LEFT]:
-                  self.rect.move_ip(-5, 0)
-        if self.rect.right < SCREEN_WIDTH:        
-              if pressed_keys[K_RIGHT]:
-                  self.rect.move_ip(5, 0)
-                  
+# Главное меню игры.
+def main_menu():
+    global username
 
-#Setting up Sprites        
-P1 = Player()
-E1 = Enemy()
-C1 = Coin()#new coin sprite
+    # Кнопки главного меню.
+    buttons = [
+        Button(100, 190, 200, 45, "Play", font),
+        Button(100, 250, 200, 45, "Leaderboard", font),
+        Button(100, 310, 200, 45, "Settings", font),
+        Button(100, 370, 200, 45, "Quit", font)
+    ]
 
-#Creating Sprites Groups
-enemies = pygame.sprite.Group()
-enemies.add(E1)
+    while True:
+        clock.tick(FPS)
 
-#Creating Sprites for coins
-coins = pygame.sprite.Group()
-coins.add(C1)
+        # Проверяем действия игрока.
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
 
-all_sprites = pygame.sprite.Group()
-all_sprites.add(P1)
-all_sprites.add(E1)
-all_sprites.add(C1)#add coin to sprite
+            if buttons[0].clicked(event):
+                username = username_screen(screen, clock, WIDTH, HEIGHT)
+                return "play"
+            if buttons[1].clicked(event):
+                return "leaderboard"
+            if buttons[2].clicked(event):
+                return "settings"
+            if buttons[3].clicked(event):
+                pygame.quit()
+                raise SystemExit
 
-#Adding a new User event 
-INC_SPEED = pygame.USEREVENT + 1
-pygame.time.set_timer(INC_SPEED, 1000)
+        # Рисуем фон и заголовок меню.
+        screen.fill(DARK)
+        draw_text(screen, "TSIS3 RACER", 36, WHITE, WIDTH // 2, 100)
+        draw_text(screen, "Advanced Driving Game", 17, YELLOW, WIDTH // 2, 140)
 
-# НОВО: событие для создания новых монет
-SPAWN_COIN = pygame.USEREVENT + 2
-pygame.time.set_timer(SPAWN_COIN, 2000)  # create 2coins in 1second
+        for button in buttons:
+            button.draw(screen)
+
+        pygame.display.flip()
 
 
-#Game Loop
-while True:
-      
-    #Cycles through all events occuring  
-    for event in pygame.event.get():
-        if event.type == INC_SPEED:
-              SPEED += 0.2 
-        if event.type == SPAWN_COIN:  # НОВО: создаем новую монету
-              new_coin = Coin()
-              coins.add(new_coin)
-              all_sprites.add(new_coin)     
-        if event.type == QUIT:
-            pygame.quit()
-            sys.exit()
+# Экран таблицы рекордов.
+def leaderboard_screen():
+    back = Button(110, 530, 180, 42, "Back", font)
+
+    while True:
+        clock.tick(FPS)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
+            if back.clicked(event):
+                return "menu"
+
+        screen.fill(DARK)
+        draw_text(screen, "Leaderboard Top 10", 28, WHITE, WIDTH // 2, 60)
+
+        # Загружаем топ игроков из leaderboard.json.
+        data = load_leaderboard()
+        if not data:
+            draw_text(screen, "No scores yet", 20, YELLOW, WIDTH // 2, 180)
+        else:
+            y = 115
+            draw_text(screen, "Rank   Name       Score    Distance", 14, YELLOW, 35, 90, center=False)
+            for i, row in enumerate(data, start=1):
+                text = f"{i:<5} {row['name'][:8]:<9} {row['score']:<7} {row['distance']}m"
+                surface = small_font.render(text, True, WHITE)
+                screen.blit(surface, (35, y))
+                y += 34
+
+        back.draw(screen)
+        pygame.display.flip()
 
 
-    DISPLAYSURF.blit(background, (0,0))
-    scores = font_small.render(str(SCORE_E), True, BLACK)
-    DISPLAYSURF.blit(scores, (10,10))
+# Экран настроек.
+def settings_screen():
+    global settings
+
+    sound = Button(70, 160, 260, 42, "", font)
+    color = Button(70, 230, 260, 42, "", font)
+    difficulty = Button(70, 300, 260, 42, "", font)
+    back = Button(110, 430, 180, 42, "Back", font)
+
+    # Возможные цвета машины.
+    colors = ["blue", "red", "green"]
+    # Возможные уровни сложности.
+    difficulties = ["easy", "normal", "hard"]
+
+    while True:
+        clock.tick(FPS)
+
+        # Обновляем текст кнопок по текущим настройкам.
+        sound.text = f"Sound: {'ON' if settings['sound'] else 'OFF'}"
+        color.text = f"Car color: {settings['car_color']}"
+        difficulty.text = f"Difficulty: {settings['difficulty']}"
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
+
+            # При клике меняем настройку и сохраняем ее.
+            if sound.clicked(event):
+                settings["sound"] = not settings["sound"]
+                save_settings(settings)
+
+            if color.clicked(event):
+                index = colors.index(settings["car_color"])
+                settings["car_color"] = colors[(index + 1) % len(colors)]
+                save_settings(settings)
+
+            if difficulty.clicked(event):
+                index = difficulties.index(settings["difficulty"])
+                settings["difficulty"] = difficulties[(index + 1) % len(difficulties)]
+                save_settings(settings)
+
+            if back.clicked(event):
+                return "menu"
+
+        screen.fill(DARK)
+        draw_text(screen, "Settings", 32, WHITE, WIDTH // 2, 80)
+        sound.draw(screen)
+        color.draw(screen)
+        difficulty.draw(screen)
+        back.draw(screen)
+        pygame.display.flip()
 
 
-    #shows collection coins
-    coinss= font_small.render(str(SCORE_C),True,BLACK)
-    DISPLAYSURF.blit(coinss, (365,10))
+# Экран после победы или проигрыша.
+def game_over_screen(result, finished=False):
+    retry = Button(95, 365, 210, 42, "Retry", font)
+    menu = Button(95, 425, 210, 42, "Main Menu", font)
+
+    title = "FINISHED!" if finished else "GAME OVER"
+    color = GREEN if finished else RED
+
+    while True:
+        clock.tick(FPS)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                raise SystemExit
+            if retry.clicked(event):
+                return "play"
+            if menu.clicked(event):
+                return "menu"
+
+        screen.fill(DARK)
+        draw_text(screen, title, 36, color, WIDTH // 2, 105)
+        draw_text(screen, f"Player: {username}", 20, WHITE, WIDTH // 2, 175)
+        draw_text(screen, f"Score: {result['score']}", 20, WHITE, WIDTH // 2, 215)
+        draw_text(screen, f"Distance: {result['distance']}m", 20, WHITE, WIDTH // 2, 250)
+        draw_text(screen, f"Coins: {result['coins']}", 20, WHITE, WIDTH // 2, 285)
+        retry.draw(screen)
+        menu.draw(screen)
+        pygame.display.flip()
 
 
+# Запускает гонку и сохраняет результат.
+def play_game():
+    game = RacerGame(screen, clock, username, settings)
+    status = game.run()
 
-    #Moves and Re-draws all Sprites
-    for entity in all_sprites:
-        entity.move()
-        DISPLAYSURF.blit(entity.image, entity.rect)
-    
-    #проверяем сбор монет
-    collected_coins = pygame.sprite.spritecollide(P1, coins, True)  # True удаляет монету при сборе
-    for coin in collected_coins:
-        SCORE_C += 1
-        # We also can app a coin-collecting sound
-        # pygame.mixer.Sound('coin.wav').play()
-        print(f"Coin collected! Total: {SCORE_C}")  # Для отладки
-        
-        # Создаем новую монету на месте собранной
-        new_coin = Coin()
-        coins.add(new_coin)
-        all_sprites.add(new_coin)
-        
+    # Данные для финального экрана.
+    result = {
+        "score": game.score,
+        "distance": int(game.distance),
+        "coins": game.coins
+    }
 
-    #To be run if collision occurs between Player and Enemy
-    if pygame.sprite.spritecollideany(P1, enemies):
-          pygame.mixer.Sound('crash.wav').play()
-          time.sleep(1)
-                   
-          DISPLAYSURF.fill(RED)
-          DISPLAYSURF.blit(game_over, (30,250))
-          
-#Show final score
-          final_score = font_small.render(f"Coins collected: {SCORE_C}", True, WHITE)
-          DISPLAYSURF.blit(final_score, (120, 350))
+    # Сохраняем результат в leaderboard.json.
+    save_score(username, game.score, game.distance, game.coins)
 
-          pygame.display.update()
-          for entity in all_sprites:
-                entity.kill() 
-          time.sleep(2)
-          pygame.quit()
-          sys.exit()        
-        
-    pygame.display.update()
-    FramePerSec.tick(FPS)
+    return game_over_screen(result, finished=(status == "finished"))
+
+
+# Главный цикл переключает экраны.
+def main():
+    state = "menu"
+
+    while True:
+        if state == "menu":
+            state = main_menu()
+        elif state == "play":
+            state = play_game()
+        elif state == "leaderboard":
+            state = leaderboard_screen()
+        elif state == "settings":
+            state = settings_screen()
+
+
+if __name__ == "__main__":
+    main()
