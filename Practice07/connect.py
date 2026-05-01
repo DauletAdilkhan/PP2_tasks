@@ -2,7 +2,6 @@ import psycopg2
 from psycopg2 import OperationalError
 
 def connect():
-
     try:
         conn = psycopg2.connect(
             host="localhost",
@@ -14,4 +13,5 @@ def connect():
         return conn
     except OperationalError as e:
         return None
-    
+
+get_connection = connect  # создаем алиас
