@@ -1,267 +1,263 @@
-# first run the code without activating the base_layer
-# then activate the base_layer (uncomment 3 related lines of code) 
-# and run the code again
-
 import pygame
-import math
+import sys
+import datetime
+# функции из tools.py (вспомогательные инструменты)
+from tools import canvas_pos, flood_fill, draw_preview, commit_shape
 
 pygame.init()
 
-WIDTH = 800
-HEIGHT = 600
+SCREEN_W = 900
+SCREEN_H = 780
+TOOLBAR_W = 180
 
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
-base_layer = pygame.Surface((WIDTH, HEIGHT))
+CANVAS_X = TOOLBAR_W
+CANVAS_W = SCREEN_W - TOOLBAR_W
+CANVAS_H = SCREEN_H
 
-#палитра
-colorRED = (255, 0, 0)
-colorBLUE = (0, 0, 255)
-colorWHITE = (255, 255, 255)
-colorBLACK = (0, 0, 0)
-colorGREEN = (0, 255, 0)
-colorYELLOW = (255, 255, 0)
+# 🎨 Modern colors
+BG_CANVAS = (255, 255, 255)# белый холст
+BG_PANEL = (24, 26, 32)# тёмная панель
+HIGHLIGHT = (100, 160, 255)# голубой акцент
+TEXT_COLOR = (230, 235, 245)
+DIVIDER = (70, 80, 100)
 
+TOOLS = [
+    "Pencil", "Line", "Rectangle", "Circle", "Square",
+    "Right Triangle", "Equilateral Triangle", "Rhombus",
+    "Eraser", "Fill", "Text"
+]
+
+PALETTE = [
+    (0, 0, 0), (80, 80, 80), (160, 160, 160), (255, 255, 255),
+    (255, 0, 0), (180, 0, 0), (255, 100, 0), (200, 60, 0),
+    (255, 200, 0), (180, 140, 0), (0, 200, 0), (0, 120, 0),
+    (0, 200, 200), (0, 100, 160), (0, 0, 255), (0, 0, 140),
+    (180, 0, 180), (100, 0, 120), (255, 150, 200), (150, 80, 40),
+]
+
+screen = pygame.display.set_mode((SCREEN_W, SCREEN_H))
+pygame.display.set_caption("Paint Pro 🎨")
 clock = pygame.time.Clock()
 
-LMBpressed = False
-THICKNESS = 5
+font_tool = pygame.font.SysFont("Arial", 18, bold=True)
+font_label = pygame.font.SysFont("Arial", 14)
+font_text = pygame.font.SysFont("Arial", 28)
 
-currX = 0
-currY = 0
-prevX = 0
-prevY = 0
+canvas = pygame.Surface((CANVAS_W, CANVAS_H))
+canvas.fill(BG_CANVAS)
 
-# Новые переменные
-current_color = colorWHITE
-current_tool = "draw"
 
-def calculate_rect(x1, y1, x2, y2):
-    return pygame.Rect(min(x1, x2), min(y1, y2), abs(x1 - x2), abs(y1 - y2))
+def draw_toolbar(surface, active_tool, draw_color, brush_size):
+    mouse_pos = pygame.mouse.get_pos()
 
-# круг
-def calculate_circle(x1, y1, x2, y2):
-    radius = int(((x2 - x1)**2 + (y2 - y1)**2)**0.5)
-    return (x1, y1, radius)
+    pygame.draw.rect(surface, BG_PANEL, (0, 0, TOOLBAR_W, SCREEN_H))
 
-# квадрат (сторона = max(ширина, высота))
-def calculate_square(x1, y1, x2, y2):
-    side = max(abs(x2 - x1), abs(y2 - y1))
-    if x2 >= x1 and y2 >= y1:
-        return pygame.Rect(x1, y1, side, side)
-    elif x2 < x1 and y2 >= y1:
-        return pygame.Rect(x1 - side, y1, side, side)
-    elif x2 >= x1 and y2 < y1:
-        return pygame.Rect(x1, y1 - side, side, side)
-    else:
-        return pygame.Rect(x1 - side, y1 - side, side, side)
+    y = 15
+    title = font_tool.render("Paint Pro", True, HIGHLIGHT)
+    surface.blit(title, (20, y))
+    y += 40
 
-# прямоугольный треугольник (по двум точкам - катеты)
-def calculate_right_triangle(x1, y1, x2, y2):
-    return [(x1, y1), (x2, y1), (x1, y2)]
+    for tool in TOOLS:
+        rect = pygame.Rect(10, y, TOOLBAR_W - 20, 34)
 
-# равносторонний треугольник (первая точка - центр, вторая - радиус и направление)
-def calculate_equilateral_triangle(x1, y1, x2, y2):
-    side = math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-    height = side * math.sqrt(3) / 2
-    
-    # Определяем направление
-    dx = x2 - x1
-    dy = y2 - y1
-    
-    if dx != 0 or dy != 0:
-        # Нормализуем направление
-        length = math.sqrt(dx**2 + dy**2)
-        dx /= length
-        dy /= length
-        
-        # Перпендикулярное направление
-        perp_dx = -dy
-        perp_dy = dx
-        
-        # Вершины равностороннего треугольника
-        # Основание перпендикулярно направлению от центра
-        half_side = side / 2
-        p1 = (x1 - half_side * perp_dx, y1 - half_side * perp_dy)
-        p2 = (x1 + half_side * perp_dx, y1 + half_side * perp_dy)
-        p3 = (x1 + height * dx, y1 + height * dy)
-    else:
-        # Если точки совпадают, рисуем маленький треугольник
-        p1 = (x1 - 20, y1 + 20)
-        p2 = (x1 + 20, y1 + 20)
-        p3 = (x1, y1 - 20)
-    
-    return [p1, p2, p3]
+        if rect.collidepoint(mouse_pos):
+            color_btn = (60, 70, 90)
+        elif tool == active_tool:
+            color_btn = HIGHLIGHT
+        else:
+            color_btn = (40, 45, 60)
 
-# ромб (по диагоналям)
-def calculate_rhombus(x1, y1, x2, y2):
-    center_x = (x1 + x2) // 2
-    center_y = (y1 + y2) // 2
-    dx = abs(x2 - x1) // 2
-    dy = abs(y2 - y1) // 2
-    
-    return [
-        (center_x, center_y - dy),  # верх
-        (center_x + dx, center_y),  # право
-        (center_x, center_y + dy),  # низ
-        (center_x - dx, center_y)   # лево
-    ]
+        pygame.draw.rect(surface, color_btn, rect, border_radius=10)
 
-running = True
+        if tool == active_tool:
+            pygame.draw.rect(surface, (255, 255, 255), rect, 2, border_radius=10)
 
-while running:
-    # Очищаем экран и показываем base_layer
-    screen.blit(base_layer, (0, 0))
-    
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
+        label = font_label.render(tool, True, TEXT_COLOR)
+        surface.blit(label, label.get_rect(center=rect.center))
 
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            print("LMB pressed!")
-            LMBpressed = True
-            prevX = event.pos[0]
-            prevY = event.pos[1]
-            
-            # Для draw и eraser сразу начинаем рисовать
-            if current_tool == "draw":
-                pygame.draw.circle(screen, current_color, (prevX, prevY), THICKNESS)
-            elif current_tool == "eraser":
-                pygame.draw.circle(screen, colorBLACK, (prevX, prevY), THICKNESS)
-            
-        if event.type == pygame.MOUSEMOTION:
-            if LMBpressed:
-                currX = event.pos[0]
-                currY = event.pos[1]
+        y += 40
+
+    y += 10
+
+    size_text = font_label.render(f"Brush: {brush_size}px", True, TEXT_COLOR)
+    surface.blit(size_text, (20, y))
+    y += 20
+
+    hint = font_label.render("1 / 2 / 3 size", True, (140, 150, 170))
+    surface.blit(hint, (20, y))
+    y += 30
+
+    # 🎨 Color palette
+    for i, color in enumerate(PALETTE):
+        x = 20 + (i % 4) * 35
+        y2 = y + (i // 4) * 35
+        r = pygame.Rect(x, y2, 30, 30)
+
+        pygame.draw.rect(surface, color, r, border_radius=6)
+
+        if r.collidepoint(mouse_pos):
+            pygame.draw.rect(surface, (255, 255, 255), r, 2, border_radius=6)
+
+        if color == draw_color:
+            pygame.draw.rect(surface, HIGHLIGHT, r, 3, border_radius=6)
+
+    # bottom text
+    txt = font_label.render("C = clear | Ctrl+S = save", True, (150, 120, 120))
+    surface.blit(txt, (10, SCREEN_H - 30))
+
+#нажал ли пользователь на инструмент
+def get_tool_at(mx, my):
+    y = 55
+    for tool in TOOLS:
+        rect = pygame.Rect(10, y, TOOLBAR_W - 20, 34)
+        if rect.collidepoint(mx, my):
+            return tool
+        y += 40
+    return None
+
+#нажал ли на цвет
+def get_palette_color(mx, my):
+    y_start = 55 + len(TOOLS) * 40 + 60
+
+    for i, color in enumerate(PALETTE):
+        x = 20 + (i % 4) * 35
+        y = y_start + (i // 4) * 35
+        if pygame.Rect(x, y, 30, 30).collidepoint(mx, my):
+            return color
+    return None
+
+
+def main():
+    active_tool = "Pencil"
+    draw_color = (0, 0, 0)
+    brush_size = 5
+
+    drawing = False
+    start_pos = None
+    prev_pos = None
+
+    typing = False
+    text = ""
+    text_pos = None
+
+    while True:
+        clock.tick(60)
+        mx, my = pygame.mouse.get_pos()
+
+        for event in pygame.event.get():
+
+            #выход
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+
+                if typing:
+                    if event.key == pygame.K_RETURN:
+                        canvas.blit(font_text.render(text, True, draw_color), text_pos)
+                        typing = False
+                        text = ""
+
+                    elif event.key == pygame.K_ESCAPE:
+                        typing = False
+                        text = ""
+
+                    elif event.key == pygame.K_BACKSPACE:
+                        text = text[:-1]
+
+                    else:
+                        text += event.unicode
                 
-                # Восстанавливаем base_layer перед предпросмотром
-                screen.blit(base_layer, (0, 0))
+                #размер кисти
+                else:
+                    if event.key == pygame.K_1:
+                        brush_size = 2
+                    elif event.key == pygame.K_2:
+                        brush_size = 5
+                    elif event.key == pygame.K_3:
+                        brush_size = 10
+                    #очистка
+                    elif event.key == pygame.K_c:
+                        canvas.fill(BG_CANVAS)
+
+                    mods = pygame.key.get_mods()
+                    
+                    #сохранение
+                    if event.key == pygame.K_s and (mods & pygame.KMOD_CTRL or mods & pygame.KMOD_META):
+                        filename = f"canvas_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+                        pygame.image.save(canvas, filename)
+                        print("Saved:", filename)
+                    if event.key == pygame.K_F5:
+                        pygame.image.save(canvas, "test.png")
+                        print("Saved test.png")
+            if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+
+                if mx < TOOLBAR_W:
+                    tool = get_tool_at(mx, my)#выбор инструмента
+                    if tool:
+                        active_tool = tool
+                        typing = False
+
+                    color = get_palette_color(mx, my)#выбор цвета
+                    if color:
+                        draw_color = color
+
+                else:
+                    cx, cy = canvas_pos(mx, my, CANVAS_X)
+
+                    if active_tool == "Fill":
+                        flood_fill(canvas, cx, cy, draw_color, CANVAS_W, CANVAS_H)
+
+                    elif active_tool == "Text":
+                        typing = True
+                        text_pos = (cx, cy)
+                        text = ""
+
+                    else:
+                        drawing = True#начало рисования
+                        start_pos = (cx, cy)
+                        prev_pos = (cx, cy)
+
+            if event.type == pygame.MOUSEBUTTONUP:
+                if drawing:
+                    cx, cy = canvas_pos(mx, my, CANVAS_X)
+                    commit_shape(canvas, active_tool, start_pos, (cx, cy), draw_color, brush_size)#отпускание мыши
+                drawing = False
+
+            if event.type == pygame.MOUSEMOTION and drawing:
+                cx, cy = canvas_pos(mx, my, CANVAS_X)
+                #pencil
+                if active_tool == "Pencil":
+                    pygame.draw.line(canvas, draw_color, prev_pos, (cx, cy), brush_size)
+                    prev_pos = (cx, cy)
                 
-                if current_tool == "rectangle":
-                    pygame.draw.rect(screen, current_color, calculate_rect(prevX, prevY, currX, currY), THICKNESS)
-                elif current_tool == "circle":
-                    pygame.draw.circle(screen, current_color, (prevX, prevY), 
-                                     int(((currX - prevX)**2 + (currY - prevY)**2)**0.5), THICKNESS)
-                elif current_tool == "draw":
-                    # Рисуем линию и сразу сохраняем
-                    pygame.draw.line(screen, current_color, (prevX, prevY), (currX, currY), THICKNESS)
-                    base_layer.blit(screen, (0, 0))  # Сохраняем сразу
-                    prevX, prevY = currX, currY
-                elif current_tool == "eraser":
-                    pygame.draw.line(screen, colorBLACK, (prevX, prevY), (currX, currY), THICKNESS)
-                    base_layer.blit(screen, (0, 0))  # Сохраняем сразу
-                    prevX, prevY = currX, currY
-                    #adding new figures
-                elif current_tool == "square":
-                    pygame.draw.rect(screen, current_color, calculate_square(prevX, prevY, currX, currY), THICKNESS)
-                elif current_tool == "right_triangle":
-                    points = calculate_right_triangle(prevX, prevY, currX, currY)
-                    pygame.draw.polygon(screen, current_color, points, THICKNESS)
-                elif current_tool == "equilateral_triangle":
-                    points = calculate_equilateral_triangle(prevX, prevY, currX, currY)
-                    pygame.draw.polygon(screen, current_color, points, THICKNESS)
-                elif current_tool == "rhombus":
-                    points = calculate_rhombus(prevX, prevY, currX, currY)
-                    pygame.draw.polygon(screen, current_color, points, THICKNESS)
+                #eraser
+                elif active_tool == "Eraser":
+                    pygame.draw.circle(canvas, BG_CANVAS, (cx, cy), brush_size * 2)
 
-        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
-            print("LMB released!")
-            LMBpressed = False
-            currX = event.pos[0]
-            currY = event.pos[1]
+        screen.blit(canvas, (CANVAS_X, 0))
+
+        # preview (предпросмотр)
+        if drawing and start_pos:
+            cx, cy = canvas_pos(mx, my, CANVAS_X)
+            preview = canvas.copy()
+            draw_preview(preview, active_tool, start_pos, (cx, cy), draw_color, brush_size)
+            screen.blit(preview, (CANVAS_X, 0))
             
-            # Рисуем финальную фигуру для rectangle и circle
-            if current_tool == "rectangle":
-                pygame.draw.rect(screen, current_color, calculate_rect(prevX, prevY, currX, currY), THICKNESS)
-                base_layer.blit(screen, (0, 0))
-            elif current_tool == "circle":
-                radius = int(((currX - prevX)**2 + (currY - prevY)**2)**0.5)
-                pygame.draw.circle(screen, current_color, (prevX, prevY), radius, THICKNESS)
-                base_layer.blit(screen, (0, 0))
-            elif current_tool == "square":
-                pygame.draw.rect(screen, current_color, calculate_square(prevX, prevY, currX, currY), THICKNESS)
-                base_layer.blit(screen, (0, 0))
-            elif current_tool == "right_triangle":
-                points = calculate_right_triangle(prevX, prevY, currX, currY)
-                pygame.draw.polygon(screen, current_color, points, THICKNESS)
-                base_layer.blit(screen, (0, 0))
-            elif current_tool == "equilateral_triangle":
-                points = calculate_equilateral_triangle(prevX, prevY, currX, currY)
-                pygame.draw.polygon(screen, current_color, points, THICKNESS)
-                base_layer.blit(screen, (0, 0))
-            elif current_tool == "rhombus":
-                points = calculate_rhombus(prevX, prevY, currX, currY)
-                pygame.draw.polygon(screen, current_color, points, THICKNESS)
-                base_layer.blit(screen, (0, 0))
-            # Для draw и eraser уже всё сохранено в MOUSEMOTION
+        # text preview
+        if typing:
+            screen.blit(font_text.render(text, True, draw_color),
+                        (CANVAS_X + text_pos[0], text_pos[1]))
 
-        if event.type == pygame.KEYDOWN: 
-            # Выбор инструмента (цифры)
-            if event.key == pygame.K_1:
-                current_tool = "draw"
-                print("Режим: Рисование")
-            elif event.key == pygame.K_2:
-                current_tool = "rectangle"
-                print("Режим: Прямоугольник")
-            elif event.key == pygame.K_3:
-                current_tool = "circle"
-                print("Режим: Круг")
-            elif event.key == pygame.K_4:
-                current_tool = "eraser"
-                print("Режим: Ластик")
-            elif event.key == pygame.K_5:
-                current_tool = "square"
-                print("Режим: Квадрат")
-            elif event.key == pygame.K_6:
-                current_tool = "right_triangle"
-                print("Режим: Прямоугольный треугольник")
-            elif event.key == pygame.K_7:
-                current_tool = "equilateral_triangle"
-                print("Режим: Равносторонний треугольник")
-            elif event.key == pygame.K_8:
-                current_tool = "rhombus"
-                print("Режим: Ромб")
+        # cursor brush
+        if mx >= CANVAS_X:
+            pygame.draw.circle(screen, draw_color, (mx, my), brush_size, 1)
+
+        draw_toolbar(screen, active_tool, draw_color, brush_size)
+
+        pygame.display.flip()
 
 
-            #выбор цвета
-            if event.key == pygame.K_r:
-                current_color = colorRED
-                print("Цвет: Красный")
-            elif event.key == pygame.K_g:
-                current_color = colorGREEN
-                print("Цвет: Зеленый")
-            elif event.key == pygame.K_b:
-                current_color = colorBLUE
-                print("Цвет: Синий")
-            elif event.key == pygame.K_y:
-                current_color = colorYELLOW
-                print("Цвет: Желтый")
-            elif event.key == pygame.K_w:
-                current_color = colorWHITE
-                print("Цвет: Белый")
-            
-            # Изменение толщины
-            if event.key == pygame.K_EQUALS or event.key == pygame.K_PLUS:
-                THICKNESS += 1
-                print(f"Толщина: {THICKNESS}")
-            if event.key == pygame.K_MINUS:
-                THICKNESS = max(1, THICKNESS - 1)
-                print(f"Толщина: {THICKNESS}")
-            
-            # Очистка экрана (клавиша C)
-            if event.key == pygame.K_c:
-                screen.fill(colorBLACK)
-                base_layer.fill(colorBLACK)
-                print("Экран очищен")
-    
-    # Показываем подсказки
-    font = pygame.font.Font(None, 24)
-    hint1 = font.render(f"Tool: {current_tool}  Size: {THICKNESS}", True, colorWHITE)
-    hint2 = font.render("1:Draw 2:Rect 3:Circle 4:Eraser 5:Square 6:RightTri 7:EqTri 8:Rhombus", True, colorWHITE)
-    hint3 = font.render("R,G,B,Y,W - Colors | +/- Size | C - Clear", True, colorWHITE)
-    screen.blit(hint1, (10, 10))
-    screen.blit(hint2, (10, 35))
-    screen.blit(hint3, (10, 60))
-    
-    
-    pygame.display.flip()
-    clock.tick(60)
+if __name__ == "__main__":
+    main()
